@@ -45,8 +45,9 @@ python -m luteberget benchmark/qv6_depth6_01_opt7.txt \
   --output luteberget/results/my_comparison.jsonl
 ```
 
-`--compare-legacy` builds the retained `legacy_model.py` with the chosen
-instance and horizon. It sets the Gurobi limit, thread count, seed, and zero relative MIP gap.
+`--compare-legacy` builds the retained
+[`our_formulation/legacy_model.py`](../our_formulation/legacy_model.py) with the
+chosen instance and horizon. It sets the Gurobi limit, thread count, seed, and zero relative MIP gap.
 The older `--compare-main` spelling remains an alias. Both searches start
 independently; neither gets the other's solution or bound. Default Gurobi settings are `--threads 1 --seed 0`.
 Changes to the structure of `legacy_model.py` may require updating the adapter in

@@ -15,7 +15,7 @@ variable families define the routing MIP. Its LP relaxation can be weak, so
 the default solver also computes a lower bound on the movement required by
 small groups of logical qubits, using a separate auxiliary MIP.
 
-The earlier model is retained as [`legacy_model.py`](../legacy_model.py).
+The earlier model is retained as [`legacy_model.py`](legacy_model.py).
 No known-optimum metadata or saved solutions are used by this solver. For
 setup and an overview of the other methods, see the [repository README](../README.md).
 
@@ -66,7 +66,7 @@ only within that deadline.
 
 ## Sets and variables
 
-There are n logical qubits and n physical nodes, as in [`legacy_model.py`](../legacy_model.py). Hardware edges
+There are n logical qubits and n physical nodes, as in [`legacy_model.py`](legacy_model.py). Hardware edges
 form E; A contains both directions of each edge. Time slots are `0,...,T-1`.
 Gate g acts on logical qubits `(p_g,q_g)`. A dependency `(g,h)` requires g to
 execute strictly before h.

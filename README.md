@@ -188,17 +188,18 @@ exponential time, so small examples are the best starting point.
 
 ```text
 our_formulation/        Compact formulation, bound/heuristic helpers, math notes
+  legacy_model.py      Earlier time-indexed Gurobi model, retained for reference
 luteberget/             Independent branch-and-bound implementation and guide
 nannicini_swap_bip/     Fixed-layer flow BIP, validation, and formulation notes
 benchmark/             Input instances and reproducible instance generators
 tests/                 Regression checks for our formulation and helpers
 load_instance.py       Shared instance reader
-legacy_model.py        Earlier time-indexed Gurobi model, retained for reference
 requirements.txt       Gurobi Python dependency
 ```
 
-`legacy_model.py` retains its source-configured instance and horizon; run it
-with `python legacy_model.py` or use Luteberget's optional comparison adapter.
+[`our_formulation/legacy_model.py`](our_formulation/legacy_model.py) retains its
+source-configured instance and horizon; run `python -m our_formulation.legacy_model`
+from the repository root or use Luteberget's optional comparison adapter.
 Use the package CLIs for new runs. To compare with it through the adapter:
 
 ```bash

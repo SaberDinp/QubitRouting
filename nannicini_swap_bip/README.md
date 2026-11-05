@@ -5,7 +5,7 @@ This package adapts
 in Gurobi. It minimizes the number of SWAPs and forbids a SWAP on either qubit of a gate in the same slot. Gates are greedily
 grouped into fixed simultaneous layers, respecting the supplied DAG and breaking
 ties by gate index. The earlier free-scheduling model is retained as
-[`legacy_model.py`](../legacy_model.py).
+[`legacy_model.py`](../our_formulation/legacy_model.py).
 
 The model uses binary `w`, `y`, and `x` variables and the objective
 `0.5 * sum(x[t,q,i,j] for i != j)`. Gate qubits have only self-loop movement;

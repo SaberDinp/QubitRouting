@@ -1,4 +1,4 @@
-"""Run the legacy_model.py formulation with controlled data and solver settings.
+"""Run our_formulation/legacy_model.py with controlled data and solver settings.
 
 No snapshot, added cuts, bound from the other method, or warm start is used.
 Gurobi is imported only when this optional comparison is requested.
@@ -13,7 +13,7 @@ import time
 from .validation import unit_schedule, validate_solution
 
 
-LEGACY_MODEL = Path(__file__).resolve().parents[1] / "legacy_model.py"
+LEGACY_MODEL = Path(__file__).resolve().parents[1] / "our_formulation" / "legacy_model.py"
 
 
 def build_legacy_model(instance, horizon, env, source=LEGACY_MODEL):
