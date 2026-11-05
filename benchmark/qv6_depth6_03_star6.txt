@@ -1,55 +1,58 @@
-# Source circuit: benchmark/qv6_depth6_01_opt7.txt
+# Source circuit: benchmark/qv6_depth6_03_opt11.txt
 # Gate pairs and gate_dag are copied unchanged from the source.
 # Hardware topology: star6; undirected edges listed once.
-# Generator: benchmark/generate_general.py
+# Generator: benchmark/generate_hardware_variants.py
 # optimal_swaps = -1 means unknown; source path optima do not apply.
 N = 6
 optimal_swaps = -1
 
 G =
-0 4
-3 5
-1 2
 2 3
-1 5
-0 4
-2 5
-0 3
 1 4
+0 5
+0 1
+3 4
 2 5
-1 4
-0 3
-1 2
-3 5
+2 5
+1 3
 0 4
-1 2
-0 3
+0 1
+2 3
 4 5
+1 5
+0 3
+2 4
+0 4
+1 5
+2 3
 
 gate_dag =
 1 3
 2 3
+0 4
 1 4
-2 4
 0 5
-3 6
-4 6
+2 5
+5 6
 3 7
-5 7
+4 7
+3 8
 4 8
-5 8
-6 9
-8 10
-7 11
+8 9
+7 9
+6 10
+7 10
+8 11
+6 11
 9 12
-10 12
+11 12
 9 13
-11 13
+10 13
 10 14
 11 14
-12 15
-13 16
-14 16
+13 15
+14 15
+12 16
 13 17
 14 17
 

@@ -13,7 +13,7 @@ instances are included so each method can be run from the command line.
 
 | Method | Main idea | Scheduling and objective | Requirements |
 |---|---|---|---|
-| [Our formulation](our_formulation/COMPACT_FORMULATION.md) | Binary qubit placements and gate times, with continuous reciprocal movement flows representing SWAPs. A heuristic supplies feasible schedules; a separate small-subset model supplies certified lower bounds. | Minimize SWAPs within a chosen deadline; gate times are free subject to the supplied dependency DAG. | Python and Gurobi |
+| [Our formulation](our_formulation/COMPACT_FORMULATION.md) | Binary qubit placements and gate times, with continuous reciprocal movement flows representing SWAPs. A heuristic supplies a safe time horizon and a feasible schedule; a separate small-subset model supplies certified lower bounds. | Minimize SWAPs with free gate scheduling subject to the supplied dependency DAG. The default horizon preserves the unrestricted SWAP optimum. | Python and Gurobi |
 | [Luteberget](luteberget/README.md) | Search partial gate/SWAP schedules, assign qubits lazily, and prune using admissible bounds and dominance. | Default `qmrs` mode matches our deadline and operation conventions. `paper` mode also supports duration and weighted objectives. | Python; Gurobi only for optional legacy comparison |
 | [Nannicini adaptation](nannicini_swap_bip/README.md) | A binary network-flow model tracks qubits through fixed gate layers and intervening routing slots. | Minimize SWAPs for deterministic greedy gate groups; enough dummy slots allow rerouting between groups. | Python and Gurobi |
 
@@ -28,8 +28,10 @@ swapping a gate participant in the same slot and optimizes only SWAP count.
 gates to move across input layers as long as the DAG is respected. The Nannicini
 adaptation fixes simultaneous layers before solving and has a different total
 horizon. Its optimum is for those fixed groups, so a larger SWAP count does not
-by itself indicate a worse solver. Luteberget's unrestricted `paper` mode is
-also a different problem from a solve with a fixed deadline.
+by itself indicate a worse solver. For a matching deadline, give Luteberget's
+`qmrs` mode the `horizon` reported by our solver. With unit durations and SWAP
+minimization, its unrestricted `paper` mode also targets the unrestricted SWAP
+optimum. A smaller explicit deadline can change that optimum.
 
 ## Setup
 
@@ -55,13 +57,13 @@ Run all commands below from the repository root with the environment activated.
 Start with the included four-qubit instance:
 
 ```bash
-# Our compact formulation: 12 time slots, 10-second total solve budget.
+# Our formulation: automatic safe horizon, 10-second total solve budget.
 python -m our_formulation benchmark/instance_01_opt2.txt \
-  --horizon 12 --limit 10 --output results/ours.jsonl
+  --limit 10 --symmetry 2 --output results/ours.jsonl
 
-# Luteberget: the same instance and deadline.
+# Luteberget: SWAP minimization without a deadline.
 python -m luteberget benchmark/instance_01_opt2.txt \
-  --horizon 12 --time-limit 10 --output results/luteberget.jsonl
+  --mode paper --time-limit 10 --output results/luteberget.jsonl
 
 # Nannicini adaptation: fixed layers, automatic dummy-slot allowance.
 python -m nannicini_swap_bip benchmark/instance_01_opt2.txt \
@@ -78,13 +80,27 @@ To try a larger circuit or a different hardware graph:
 
 ```bash
 python -m our_formulation benchmark/qv6_depth6_01_opt7.txt \
-  --horizon 12 --limit 30
-python -m our_formulation benchmark/general/qv6_depth6_01_grid2x3.txt \
-  --horizon 12 --limit 30
+  --limit 30
+python -m our_formulation benchmark/qv6_depth6_01_grid2x3.txt \
+  --limit 30
 ```
 
+Our default scheduling horizon is **`T = number of gates + heuristic SWAP count`**.
+The heuristic first constructs and independently validates a feasible route.
+Any route with no more SWAPs can be serialized within this many unit time slots,
+so the cap cannot exclude a better SWAP solution. A closed optimality
+certificate therefore establishes the unrestricted minimum SWAP count under
+our operation conventions. `--horizon T` instead requests a deadline problem;
+its certificate is reported as applying to that fixed horizon.
+
+`--symmetry 2` is the default and selects Gurobi's maximum, aggressive symmetry
+detection. Use `--symmetry -1` to compare with Gurobi's automatic setting;
+symmetry handling changes search behavior, not the routing problem.
+See [Gurobi's Symmetry parameter](https://docs.gurobi.com/projects/optimizer/en/current/reference/parameters.html#parameter.Symmetry).
+
 Useful options for our formulation are `--coverage` (an additional interaction
-coverage inequality), `--plain` (disable the heuristic and subset bound), and
+coverage inequality), `--plain` (disable the optional beam heuristic and subset
+bound, while retaining safe horizon construction), and
 `--diagnose-lp` (solve diagnostic LP relaxations after the production run).
 Diagnostics take additional time outside `--limit`. All entry points support
 `--help`; see the method READMEs for the Python APIs and additional options.
@@ -134,8 +150,10 @@ hw_edges =
   do not use this value as a bound, target, or initial solution.
 
 Blank lines and `#` comment lines are accepted. The file has no scheduling
-horizon; choose it with the relevant CLI. The [benchmark guide](benchmark/README.md)
-describes the included circuits and generators. These are routing structures,
+horizon; our solver computes a safe one unless an explicit deadline is supplied.
+The [benchmark guide](benchmark/README.md) describes the included circuits of at
+most six qubits, `generate_quantum_volume.py` for new circuit structures, and
+`generate_hardware_variants.py` for alternative hardware topologies. These are routing structures,
 not complete quantum circuits with gate matrices or measurement instructions.
 
 Our formulation and the legacy model use unit-duration gates and SWAPs, free
@@ -154,7 +172,12 @@ schedule does not prove infeasibility. An `optimal_swaps` filename or metadata
 label does not guarantee feasibility at your chosen deadline.
 
 Our JSON reports include `status`, `objective`, `bound`, `proven_optimal`,
-`production_seconds`, and the independently replayed `schedule`. In our
+`globally_optimal`, `optimality_scope`, `horizon`, `heuristic_swap_count`,
+`production_seconds`, and the independently replayed `schedule`.
+`proven_optimal` means the reported problem was solved to optimality;
+`globally_optimal` additionally requires the automatic safe horizon.
+An explicit deadline is conservatively marked `fixed_horizon` even if it
+happens to be large enough. In our
 schedules and Luteberget's `qmrs` schedules, `placement[t][q]` gives the physical
 node of logical qubit `q` before slot `t`, `gate_times` maps gate IDs to slots, and each SWAP is
 `[slot, edge_index]`. Nannicini uses a list of per-slot records with physical-node

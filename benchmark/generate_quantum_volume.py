@@ -1,9 +1,10 @@
-"""Generate reproducible QV interaction graphs in the QMRS instance format.
+"""Generate reproducible quantum-volume routing circuits on path hardware.
 
 The file format stores the routing structure only, not Haar-random SU(4)
 matrices or measurement results. Each layer uses a uniformly shuffled pairing.
 Dependencies link consecutive gates on each logical qubit, without barriers
-between layers. The hardware is the numbered path, as in the QV6 benchmarks.
+between layers. The defaults create new six-qubit circuits in outputs/ rather
+than replacing the older, optimum-labelled QV6 benchmark circuits.
 """
 
 import argparse
@@ -14,7 +15,7 @@ import platform
 import random
 
 
-def generate(n=8, depth=8, seed=801):
+def generate(n=6, depth=6, seed=601):
     if type(n) is not int or n < 2 or n % 2:
         raise ValueError("n must be an even integer >= 2")
     if type(depth) is not int or depth < 1 or type(seed) is not int or seed < 0:
@@ -41,7 +42,7 @@ def generate(n=8, depth=8, seed=801):
 def instance_text(n, depth, seed):
     gates, dag, edges, layers = generate(n, depth, seed)
     lines = [f"# QV routing structure: qubits={n}, depth={depth}, seed={seed}",
-             "# Generator: benchmark/generate_qv.py; random.Random(seed).shuffle per layer.",
+             "# Generator: benchmark/generate_quantum_volume.py; random.Random(seed).shuffle per layer.",
              "# optimal_swaps = -1 denotes an unknown optimum, not a lower bound.",
              "# No unitary matrices or fixed-layer scheduling barriers are encoded.",
              f"N = {n}", "optimal_swaps = -1"]
@@ -50,7 +51,7 @@ def instance_text(n, depth, seed):
     return "\n".join(lines) + "\n", layers
 
 
-def write_instances(directory, n=8, depth=8, seeds=(801, 802, 803, 804)):
+def write_instances(directory, n=6, depth=6, seeds=(601, 602, 603, 604)):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     entries = []
@@ -64,7 +65,7 @@ def write_instances(directory, n=8, depth=8, seeds=(801, 802, 803, 804)):
         entries.append({"file": path.name, "seed": seed, "n": n, "depth": depth,
                         "gate_count": n * depth // 2, "layers": layers,
                         "optimal_swaps": None, "sha256": hashlib.sha256(content.encode()).hexdigest()})
-    manifest = {"generator": "benchmark/generate_qv.py", "python_version": platform.python_version(),
+    manifest = {"generator": "benchmark/generate_quantum_volume.py", "python_version": platform.python_version(),
                 "generator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                 "hardware": "numbered path", "unknown_optimum_sentinel": -1,
                 "instances": entries}
@@ -83,10 +84,11 @@ def write_instances(directory, n=8, depth=8, seeds=(801, 802, 803, 804)):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--qubits", type=int, default=8)
-    parser.add_argument("--depth", type=int, default=8)
-    parser.add_argument("--seeds", type=int, nargs="+", default=[801, 802, 803, 804])
-    parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent)
+    parser.add_argument("--qubits", type=int, default=6)
+    parser.add_argument("--depth", type=int, default=6)
+    parser.add_argument("--seeds", type=int, nargs="+", default=[601, 602, 603, 604])
+    parser.add_argument("--output-dir", type=Path,
+                        default=Path(__file__).resolve().parents[1] / "outputs" / "quantum_volume")
     args = parser.parse_args()
     for path in write_instances(args.output_dir, args.qubits, args.depth, args.seeds):
         print(path)

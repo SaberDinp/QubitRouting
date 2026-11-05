@@ -18,7 +18,10 @@ On path hardware with `N >= 3`, the default inserts **N dummy slots per gap**.
 This allows every placement permutation and a minimum-swap route between any two placements. Five slots do not provide
 that guarantee on a six-node path once swaps involving gate qubits are forbidden.
 For general connected hardware the conservative bound is `N*(N-1)//2`.
-Initial and final placement are free; there is no overall `T=12` deadline.
+Initial and final placement are free. Its layer-and-gap horizon differs from
+our free-scheduling model's automatic `T = number of gates + heuristic SWAP
+count` cap; both horizon constructions preserve their respective SWAP optima,
+but fixed layers can change the underlying routing problem.
 
 ## Run
 
@@ -83,9 +86,9 @@ as bounds or stopping targets.
 Every returned incumbent is independently replayed for placement bijection,
 gate adjacency, dependencies, resource conflicts, movement, and cost. The
 optional `--verify-exact` oracle enumerates full placements for at most seven
-qubits, runs after optimization, and is timed separately. Omit that option
-for eight-qubit instances. With no instance argument, the CLI selects all text
-files directly under `benchmark/`, including the eight-qubit circuits.
+qubits, runs after optimization, and is timed separately. All bundled circuits
+have at most six qubits. With no instance argument, the CLI selects all text
+files directly under `benchmark/`, including the hardware-topology variants.
 
 Generated reports, logs, and witnesses are ignored by Git. Use a fresh output
 path to record results in your own environment. A limited solve can return an

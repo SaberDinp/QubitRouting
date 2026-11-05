@@ -25,6 +25,14 @@ limit. To print the complete placement and schedule:
 python -m luteberget benchmark/qv6_depth6_01_opt7.txt --horizon 12 --show-schedule
 ```
 
+An arbitrary fixed horizon proves a minimum only within that deadline.
+Our compact solver now defaults to `T = number of gates + heuristic SWAP count`,
+which preserves the unrestricted SWAP optimum. For a direct `qmrs` comparison,
+use the per-instance `horizon` from its report here. Alternatively, use
+`--mode paper` for SWAP minimization without a deadline. The serialization
+argument and its assumptions are in
+[our formulation's horizon proof](../our_formulation/COMPACT_FORMULATION.md#a-safe-total-time-cap).
+
 The alternative entry point `luteberget/run.py` works in an IDE or from another
 working directory. Instance paths are resolved against the working directory,
 then the project directory, then `benchmark/`.
@@ -53,8 +61,10 @@ The default `--mode qmrs` matches the constraints in `legacy_model.py`:
 - At least one gate at slot zero and minimum total SWAP count.
 
 The paper has no fixed deadline by default. Its unrestricted optimum can be
-infeasible at your chosen `T`, which is why comparison is restricted to `qmrs`
-mode. The benchmark's `optimal_swaps` field is recorded as metadata only; it
+infeasible at an arbitrary chosen `T`, which is why legacy-model comparison
+is restricted to `qmrs` mode. A horizon certified by our heuristic bound
+preserves the unrestricted SWAP optimum under these unit-duration conventions.
+The benchmark's `optimal_swaps` field is recorded as metadata only; it
 never supplies a bound, target, incumbent, or stopping condition.
 
 Run other instances, or a batch, with the same command:

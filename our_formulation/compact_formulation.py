@@ -77,7 +77,12 @@ def _input_and_windows(gates, dag, edges, n, horizon):
     return gates, dag, edges, earliest, latest
 
 
-def build_model(gates, dag, edges, n, horizon, *, env=None, coverage=False):
+def _validate_symmetry(symmetry):
+    if type(symmetry) is not int or symmetry not in (-1, 0, 1, 2):
+        raise ValueError("symmetry must be -1 (automatic), 0 (off), 1, or 2 (aggressive)")
+
+
+def build_model(gates, dag, edges, n, horizon, *, env=None, coverage=False, symmetry=2):
     """Build the MIP without solving it or reading any known optimum.
 
     Logical and physical qubit counts are both n, as in the legacy model. Disconnected
@@ -85,6 +90,7 @@ def build_model(gates, dag, edges, n, horizon, *, env=None, coverage=False):
     are prohibited and at least one gate must execute in that slot. Globally
     idle slots are allowed and removed when extracting a schedule.
     """
+    _validate_symmetry(symmetry)
     gates, dag, edges, earliest, latest = _input_and_windows(gates, dag, edges, n, horizon)
     arcs = tuple((i, j) for u, v in edges for i, j in ((u, v), (v, u)))
     neighbors = [set() for _ in range(n)]
@@ -97,6 +103,7 @@ def build_model(gates, dag, edges, n, horizon, *, env=None, coverage=False):
     movement_times = range(1, horizon - 1)
 
     model = gp.Model("compact_reciprocal_routing", env=env)
+    model.Params.Symmetry = symmetry
     w = model.addVars(horizon, n, n, vtype=GRB.BINARY, name="w")
     a = model.addVars(gate_slots, vtype=GRB.BINARY, name="a")
     f = model.addVars([(t, q, i, j) for t in movement_times for q in range(n)
@@ -203,10 +210,15 @@ def _integer_bound(value):
     return max(0, math.ceil(value - 1e-6)) if value is not None else 0
 
 
-def solve(gates, dag, edges, n, horizon, *, time_limit=10, threads=4, seed=0,
-          coverage=False, strengthen=True, diagnose_lp=False, output=False, log_file=None):
+def solve(gates, dag, edges, n, horizon=None, *, time_limit=10, threads=4, seed=0,
+          coverage=False, strengthen=True, diagnose_lp=False, output=False, log_file=None,
+          symmetry=2):
     """Cold solve, including all bound preprocessing and heuristic time.
 
+    The default horizon is the gate count plus SWAPs in an independently
+    validated serial heuristic route. This retains a global minimum-SWAP
+    solution. An explicit horizon instead proves only a fixed-horizon optimum.
+    All preprocessing, including the serial router, consumes the time budget.
     The auxiliary MIP is a relaxation: only its dual bound can certify a
     routing lower bound. A feasible routing schedule is independently replayed.
     If these bounds meet, the time-indexed MIP need not be optimized.
@@ -217,33 +229,58 @@ def solve(gates, dag, edges, n, horizon, *, time_limit=10, threads=4, seed=0,
         raise ValueError("time_limit must be positive and finite")
     if type(threads) is not int or threads < 1 or type(seed) is not int or seed < 0:
         raise ValueError("threads must be positive and seed nonnegative integers")
+    _validate_symmetry(symmetry)
     start = time.perf_counter()
+    automatic_horizon = horizon is None
+    safe_witness = None
+    gates, dag, edges = tuple(map(tuple, gates)), tuple(map(tuple, dag)), tuple(map(tuple, edges))
+    if automatic_horizon:
+        from .serial_heuristic import construct as serial_construct
+
+        safe_witness = serial_construct(gates, dag, edges, n, deadline=start + time_limit)
+        horizon = safe_witness["horizon"]
+        if horizon != len(gates) + safe_witness["objective"]:
+            raise ValueError("Safe horizon disagrees with heuristic gate and SWAP counts")
+        # Validate at the consumer boundary too: no unchecked witness can
+        # justify the horizon, supply an incumbent, or establish optimality.
+        validate_schedule(gates, dag, edges, n, horizon,
+                          safe_witness["schedule"], safe_witness["objective"])
+    from .general_beam_start import set_general_start
+
     with gp.Env(empty=True) as env:
         env.setParam("OutputFlag", int(output or log_file is not None))
         env.setParam("LogToConsole", int(output))
         env.start()
-        p = build_model(gates, dag, edges, n, horizon, env=env, coverage=coverage)
+        p = build_model(gates, dag, edges, n, horizon, env=env, coverage=coverage,
+                        symmetry=symmetry)
         m = p.model
         bound_lp = None
         try:
             m.Params.Threads = threads
             m.Params.Seed = seed
+            m.Params.Symmetry = symmetry
             m.Params.MIPGap = m.Params.MIPGapAbs = 0
             if log_file:
                 m.Params.LogFile = str(log_file)
             build_seconds = time.perf_counter() - start
             schedule, objective, lower_bound = None, None, 0
+            if safe_witness is not None:
+                schedule, objective = safe_witness["schedule"], safe_witness["objective"]
             heuristic, movement_bound = None, None
             infeasible = False
             if strengthen and p.gates and time.perf_counter() < start + time_limit:
-                from .general_beam_start import construct, set_general_start
+                from .general_beam_start import construct
                 from .general_subset_bound import build_bound
 
                 heuristic = construct(p.gates, p.dag, p.edges, n, horizon,
                                       width=256, seed=seed,
                                       time_limit=max(.001, min(2.0, .15 * time_limit,
                                                               start + time_limit - time.perf_counter())))
-                schedule, objective = heuristic.pop("schedule"), heuristic["objective"]
+                candidate, candidate_objective = heuristic.pop("schedule"), heuristic["objective"]
+                if candidate is not None:
+                    validate_schedule(p.gates, p.dag, p.edges, n, horizon, candidate, candidate_objective)
+                    if objective is None or candidate_objective < objective:
+                        schedule, objective = candidate, candidate_objective
                 # Zero is already a universal lower bound; no preprocessing
                 # is needed when the heuristic finds a zero-SWAP schedule.
                 if objective != 0 and n >= 3 and time.perf_counter() < start + .55 * time_limit:
@@ -251,11 +288,13 @@ def solve(gates, dag, edges, n, horizon, *, time_limit=10, threads=4, seed=0,
                     size = min(5, n - 1) if n <= 6 else 4
                     b, info = build_bound(
                         p.gates, p.dag, p.edges, n, horizon, size=size, env=env,
+                        symmetry=symmetry,
                         pair_weights=True, allow_one_anonymous=size == n - 1,
                         deadline=min(bound_start + 10.0, start + .55 * time_limit))
                     try:
                         b.Params.Threads = threads
                         b.Params.Seed = seed
+                        b.Params.Symmetry = symmetry
                         b.Params.MIPGap = b.Params.MIPGapAbs = 0
                         if log_file:
                             path = Path(log_file)
@@ -327,14 +366,23 @@ def solve(gates, dag, edges, n, horizon, *, time_limit=10, threads=4, seed=0,
             result.update(build_seconds=build_seconds, production_seconds=time.perf_counter() - start,
                           schedule=schedule, schedule_validated=schedule is not None,
                           horizon=horizon, n=n, gate_count=len(p.gates), hardware_edges=p.edges,
+                          horizon_source="serial_heuristic" if automatic_horizon else "explicit",
+                          optimality_scope="global" if automatic_horizon else "fixed_horizon",
+                          heuristic_swap_count=safe_witness["objective"] if safe_witness else None,
+                          heuristic_seconds=safe_witness["seconds"] if safe_witness else None,
+                          safe_horizon={key: value for key, value in safe_witness.items() if key != "schedule"}
+                                       if safe_witness else None,
                           coverage=coverage, strengthen=strengthen, threads=threads, seed=seed, time_limit=time_limit,
+                          symmetry=symmetry,
                           proven_optimal=certified,
+                          globally_optimal=certified and automatic_horizon,
                           iterations=iterations, iterations_per_node=iterations / max(1, result["nodes"]),
                           external_start=False, external_bound=False,
                           source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                           helper_sha256={name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
-                                         for name in ("general_subset_bound.py", "general_beam_start.py")}
-                                        if strengthen else {},
+                                         for name in (("general_subset_bound.py", "general_beam_start.py")
+                                                      if strengthen else ())
+                                         + (("serial_heuristic.py",) if automatic_horizon else ())},
                           gurobi_version=list(gp.gurobi.version()))
             if diagnose_lp:
                 diagnostic_start = time.perf_counter()
@@ -371,12 +419,16 @@ def solve(gates, dag, edges, n, horizon, *, time_limit=10, threads=4, seed=0,
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("instances", nargs="+", type=Path)
-    parser.add_argument("--horizon", type=int, default=12)
+    parser.add_argument("--horizon", type=int, default=None,
+                        help="explicit slot deadline; default: gates + heuristic SWAPs for global optimality")
     parser.add_argument("--limit", type=float, default=10)
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--symmetry", type=int, choices=(-1, 0, 1, 2), default=2,
+                        help="Gurobi symmetry detection: -1 automatic, 0 off, 1 conservative, 2 aggressive (default)")
     parser.add_argument("--coverage", action="store_true", help="add the single interaction-coverage inequality")
-    parser.add_argument("--plain", action="store_true", help="disable subset bounds and the initial schedule heuristic")
+    parser.add_argument("--plain", action="store_true",
+                        help="disable subset bounds and beam search; retain the automatic-horizon serial witness")
     parser.add_argument("--diagnose-lp", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
@@ -386,15 +438,22 @@ def main():
         args.output.parent.mkdir(parents=True, exist_ok=True)
     for path in args.instances:
         gates, dag, edges, n, _ = load_instance(path)  # Reference optimum is deliberately ignored.
-        result = solve(gates, dag, edges, n, args.horizon, time_limit=args.limit,
-                       threads=args.threads, seed=args.seed, coverage=args.coverage,
-                       strengthen=not args.plain,
-                       diagnose_lp=args.diagnose_lp)
+        from .serial_heuristic import SafeHorizonUnavailable
+
+        try:
+            result = solve(gates, dag, edges, n, args.horizon, time_limit=args.limit,
+                           threads=args.threads, seed=args.seed, coverage=args.coverage,
+                           symmetry=args.symmetry,
+                           strengthen=not args.plain,
+                           diagnose_lp=args.diagnose_lp)
+        except SafeHorizonUnavailable as exc:
+            parser.error(f"{path}: {exc}")
         result.update(instance=str(path), instance_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
         if args.output:
             with args.output.open("a") as stream:
                 stream.write(json.dumps(result, allow_nan=False) + "\n")
-        print(f"{path.stem}: {result['status']}, swaps={result['objective']}, "
+        print(f"{path.stem}: {result['status']} ({result['optimality_scope']}), "
+              f"T={result['horizon']}, symmetry={result['symmetry']}, swaps={result['objective']}, "
               f"bound={result['bound']}, nodes={result['nodes']:g}, "
               f"total={result['production_seconds']:.3f}s", flush=True)
 

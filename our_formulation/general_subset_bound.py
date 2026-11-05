@@ -20,7 +20,7 @@ import time
 import gurobipy as gp
 from gurobipy import GRB
 
-from .compact_formulation import _input_and_windows
+from .compact_formulation import _input_and_windows, _validate_symmetry
 
 
 class ProjectionResourceLimit(ValueError):
@@ -272,12 +272,14 @@ def _add_conditional_rows(m, w, c, n, data):
 
 def build_bound(gates, dag, edges, n, horizon, *, size=3, env=None, min_size=None,
                 weighted=False, allow_one_anonymous=False, pair_weights=False,
-                deadline=None, state_limit=250000, arc_limit=1000000):
+                deadline=None, state_limit=250000, arc_limit=1000000, symmetry=2):
+    _validate_symmetry(symmetry)
     gates, dag, edges, _, _ = _input_and_windows(gates, dag, edges, n, horizon)
     data, precompute_seconds, metadata = _prepare_tables(gates, dag, edges, n, size, min_size,
                                                         weighted, allow_one_anonymous, pair_weights,
                                                         deadline, state_limit, arc_limit)
     m = gp.Model("general_subset_movement_bound", env=env)
+    m.Params.Symmetry = symmetry
     w = m.addVars(n, n, vtype=GRB.BINARY, name="initial")
     c = m.addVars(n, vtype=GRB.INTEGER, name="movement_count")
     objective = m.addVar(vtype=GRB.INTEGER, name="swap_count")

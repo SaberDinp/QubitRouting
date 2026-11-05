@@ -1,4 +1,4 @@
-"""Copy the existing QV circuits onto reproducible non-path hardware graphs.
+"""Copy the six-qubit quantum-volume circuits onto cycle, star, and grid hardware.
 
 Only the hardware graph changes. Gate order and every supplied dependency are
 preserved, and path-specific optimum labels are discarded. Run with --check
@@ -24,35 +24,27 @@ SOURCES = {
         "qv6_depth6_03_opt11.txt",
         "qv6_depth6_04_opt13.txt",
     ),
-    8: tuple(f"qv8_depth8_{index:02}.txt" for index in range(1, 5)),
 }
 
 
 def hardware_graphs(n):
     """Return undirected edges, each represented once, in a fixed order."""
+    if n != 6:
+        raise ValueError("Only the existing six-qubit circuit suite is supported")
     cycle = [(i, i + 1) for i in range(n - 1)] + [(0, n - 1)]
     columns = n // 2
     grid = ([(row * columns + col, row * columns + col + 1)
              for row in range(2) for col in range(columns - 1)]
             + [(col, col + columns) for col in range(columns)])
-    if n == 6:
-        return {
-            "cycle6": cycle,
-            "star6": [(0, i) for i in range(1, n)],
-            "grid2x3": grid,
-        }
-    if n == 8:
-        return {
-            "cycle8": cycle,
-            "grid2x4": grid,
-            "tree8": [(0, 1), (0, 2), (1, 3), (1, 4),
-                      (2, 5), (2, 6), (6, 7)],
-        }
-    raise ValueError("Only the existing six- and eight-qubit suites are supported")
+    return {
+        "cycle6": cycle,
+        "star6": [(0, i) for i in range(1, n)],
+        "grid2x3": grid,
+    }
 
 
 def expected_instances():
-    """Yield filenames and deterministic text for the 24 hardware variants."""
+    """Yield filenames and deterministic text for the 12 hardware variants."""
     for n, source_names in SOURCES.items():
         for index, source_name in enumerate(source_names, 1):
             source = ROOT / "benchmark" / source_name
@@ -64,7 +56,7 @@ def expected_instances():
                     f"# Source circuit: benchmark/{source_name}",
                     "# Gate pairs and gate_dag are copied unchanged from the source.",
                     f"# Hardware topology: {topology}; undirected edges listed once.",
-                    "# Generator: benchmark/generate_general.py",
+                    "# Generator: benchmark/generate_hardware_variants.py",
                     "# optimal_swaps = -1 means unknown; source path optima do not apply.",
                     f"N = {n}",
                     "optimal_swaps = -1",
@@ -99,7 +91,7 @@ def write_instances(directory, *, check=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path,
-                        default=ROOT / "benchmark" / "general")
+                        default=ROOT / "benchmark")
     parser.add_argument("--check", action="store_true",
                         help="Verify every generated instance; do not write files")
     args = parser.parse_args()
