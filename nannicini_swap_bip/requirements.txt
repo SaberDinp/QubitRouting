@@ -1,0 +1,2 @@
+# Version used for the recorded benchmark; a valid Gurobi license is required.
+gurobipy==13.0.3

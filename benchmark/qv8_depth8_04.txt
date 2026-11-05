@@ -1,0 +1,100 @@
+# QV routing structure: qubits=8, depth=8, seed=804
+# Generator: benchmark/generate_qv.py; random.Random(seed).shuffle per layer.
+# optimal_swaps = -1 denotes an unknown optimum, not a lower bound.
+# No unitary matrices or fixed-layer scheduling barriers are encoded.
+N = 8
+optimal_swaps = -1
+
+G =
+0 3
+1 6
+2 4
+5 7
+0 4
+1 2
+3 6
+5 7
+0 5
+1 2
+3 6
+4 7
+0 2
+1 7
+3 6
+4 5
+0 4
+1 7
+2 3
+5 6
+0 3
+1 2
+4 6
+5 7
+0 2
+1 4
+3 6
+5 7
+0 2
+1 5
+3 7
+4 6
+
+gate_dag =
+0 4
+2 4
+1 5
+2 5
+0 6
+1 6
+3 7
+4 8
+7 8
+5 9
+6 10
+4 11
+7 11
+8 12
+9 12
+9 13
+11 13
+10 14
+8 15
+11 15
+12 16
+15 16
+13 17
+12 18
+14 18
+14 19
+15 19
+16 20
+18 20
+17 21
+18 21
+16 22
+19 22
+17 23
+19 23
+20 24
+21 24
+21 25
+22 25
+20 26
+22 26
+23 27
+24 28
+25 29
+27 29
+26 30
+27 30
+25 31
+26 31
+
+hw_edges =
+0 1
+1 2
+2 3
+3 4
+4 5
+5 6
+6 7

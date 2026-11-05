@@ -1,0 +1,2 @@
+# Tested solver version. A valid Gurobi license is required for MIP solvers.
+gurobipy==13.0.3

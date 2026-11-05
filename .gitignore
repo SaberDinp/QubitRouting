@@ -1,0 +1,48 @@
+# Local research and presentation material
+/experiments/
+presentation/
+presentations/
+slides/
+*.ppt
+*.pptx
+*.odp
+*.key
+*presentation*.pdf
+*slides*.pdf
+*presentation*-notes.md
+*presentation*-animated.html
+
+# Generated solver output and benchmark runs
+outputs/
+results/
+*.log
+*.lp
+*.mps
+*.mst
+*.sol
+*.ilp
+
+# Python environments, caches, and build output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local editor, OS, credentials, and solver license files
+.idea/
+.vscode/
+.DS_Store
+.env
+.env.*
+!.env.example
+gurobi.lic
+*.pem
+*.keychain
